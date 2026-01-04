@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Dark Realtime</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/style.css" />
+</head>
+
+<body>
+    <div id="sidebar">
+        <h3>Dark GUI</h3>
+        <video id="local" autoplay muted></video>
+        <video id="remote" autoplay></video>
+        <button onclick="startVideo()">Start Video</button>
+    </div>
+
+    <div id="main">
+        <div id="chat"></div>
+        <div id="controls">
+            <input id="msg" placeholder="Type something" />
+            <button onclick="send()">Send</button>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/client.js"></script>
+</body>
+
+</html>
