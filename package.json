@@ -1,7 +1,22 @@
 {
-  "type": "module",
   "dependencies": {
     "express": "^5.2.1",
     "socket.io": "^4.8.3"
-  }
+  },
+  "name": "mini-chatserver",
+  "description": "A mini Chatserver with video.",
+  "version": "1.0.0",
+  "main": "server.js",
+  "http": "server(http).js",
+  "type": "module",
+  "scripts": {
+    "start": "node server",
+    "startHttp": "node \"server(http)\"",
+    "dev": "nodemon server",
+    "devHttp": "nodemon \"server(http)\"",
+    "test": "echo \"Test\" && exit 1",
+    "REPL": "node"
+  },
+  "author": "",
+  "license": "ISC"
 }
