@@ -27,10 +27,21 @@ body {
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
-    gap: 8px;
+    align-items: flex-start;
 }
 
 .msg {
+    display: inline-block;
+    max-width: 30%;
+    width: fit-content;
+    padding: 8px 12px;
+    border-radius: 14px;
+    background: #151a22;
+    border: 1px solid #262c3a;
+    word-wrap: break-word;
+}
+
+.systemmsg {
     max-width: 70%;
     padding: 8px 12px;
     border-radius: 14px;
