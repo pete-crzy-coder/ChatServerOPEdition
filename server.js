@@ -17,40 +17,50 @@ const cert = await fs.readFile(path.join(__dirname, '../certs/cert.pem'));
 const server = https.createServer({ key, cert }, app);
 const io = new Server(server);
 
-const usernames = new Set();
+let usernames = [];
 
+// ---------------- CHAT ----------------
 io.on('connection', socket => {
-  socket.username = null;
+  // ---------------- USERNAME ----------------
+  socket.on('set-username', usernameReq => {
+    let username;
+    if (usernames.includes(usernameReq)) {
+      let i = 1;
+      while (usernames.includes(usernameReq + i)) i++;
+      username = usernameReq + i;
+    } else {
+      username = usernameReq;
+    }
+    usernames.push(username);
 
-  socket.on('set-username', name => {
-    const raw = typeof name === 'string' ? name : '';
-    let base = raw.slice(0, 20).trim() || 'Anonymous';
-    let finalName = base;
-    let i = 1;
-
-    if (socket.username) usernames.delete(socket.username);
-    while (usernames.has(finalName)) finalName = `${base}${i++}`;
-
-    socket.username = finalName;
-    usernames.add(finalName);
-
-    socket.emit('username-confirmed', finalName);
-    io.emit('system', `${finalName} joined`);
+    socket.emit('username-confirmed', username);
+    io.emit('system', `${username} joined`);
   });
 
+  // send all current peers to new socket
+    io.emit('peers', Array.from(io.sockets.sockets.keys()));
+
+  // Chat messaging
   socket.on('chat', msg => {
-    if (!socket.username || typeof msg !== 'string') return;
-    io.emit('chat', { user: socket.username, text: msg });
+    const user = socket.id.slice(0, 6); // simple user id prefix
+    io.emit('chat', { user, msg });
   });
 
-  socket.on('offer', o => socket.broadcast.emit('offer', o));
-  socket.on('answer', a => socket.broadcast.emit('answer', a));
-  socket.on('ice', c => socket.broadcast.emit('ice', c));
+  // WebRTC signaling
+  socket.on('offer', ({ to, offer }) => {
+    socket.to(to).emit('offer', { from: socket.id, offer });
+  });
+
+  socket.on('answer', ({ to, answer }) => {
+    socket.to(to).emit('answer', { from: socket.id, answer });
+  });
+
+  socket.on('ice', ({ to, candidate }) => {
+    socket.to(to).emit('ice', { from: socket.id, candidate });
+  });
 
   socket.on('disconnect', () => {
-    if (!socket.username) return;
-    usernames.delete(socket.username);
-    io.emit('system', `${socket.username} left`);
+    io.emit('peer-left', socket.id);
   });
 });
 

@@ -1,108 +1,149 @@
 const socket = io();
 
+const localVideo = document.getElementById('local');
+localVideo.style.transform = 'scaleX(-1)';
+const sidebar = document.getElementById('sidebar');
 const chat = document.getElementById('chat');
 const msg = document.getElementById('msg');
 
-const username = localStorage.username || prompt('Username?') || 'Anonymous';
-localStorage.username = username !== 'Anonymous' ? username : '';
+const peers = {};
+const pendingCandidates = {};
+let stream;
+
+// ---------------- USERNAME ----------------
+let username = localStorage.username || prompt('Username?') || 'Anonymous';
 socket.emit('set-username', username);
 
+socket.on('username-confirmed', name => {
+    username = name;
+});
+
+localStorage.username = username !== 'Anonymous' ? username : '';
+
+socket.on('system', text => { const d = document.createElement('div'); d.className = 'msg'; d.style.opacity = '0.6'; d.style.alignSelf = 'center'; d.textContent = text; chat.appendChild(d); });
+// ---------------- TEXT CHAT ----------------
 socket.on('chat', data => {
     const d = document.createElement('div');
     d.className = 'msg';
-    d.innerHTML = `<b>${data.user}:</b> ${data.text}`;
+    d.innerHTML = `<b>${username}:</b> ${data.msg}`;
     chat.appendChild(d);
     chat.scrollTop = chat.scrollHeight;
 });
 
-socket.on('system', text => {
-    const d = document.createElement('div');
-    d.className = 'msg';
-    d.style.opacity = '0.6';
-    d.style.alignSelf = 'center';
-    d.textContent = text;
-    chat.appendChild(d);
-});
-
-function send() {
-    if (msg.value.trim()) socket.emit('chat', msg.value);
-    msg.value = '';
-}
-
 msg.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        send();
+    if (e.key === 'Enter' && msg.value.trim()) {
+        socket.emit('chat', msg.value.trim());
+        msg.value = '';
     }
 });
 
-let pc;
-let stream;
-let pendingCandidates = [];
-
-function createPeerConnection() {
-    pc = new RTCPeerConnection();
-
-    pc.ontrack = e => {
-        remote.srcObject = e.streams[0];
-    };
-
-    pc.onicecandidate = e => {
-        if (e.candidate) socket.emit('ice', e.candidate);
-    };
-}
-
+// ---------------- VIDEO / WEBRTC ----------------
 async function startVideo() {
     stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    local.srcObject = stream;
+    localVideo.srcObject = stream;
+}
+const startPromise = startVideo();
 
-    createPeerConnection();
-    stream.getTracks().forEach(t => pc.addTrack(t, stream));
-
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    socket.emit('offer', offer);
+async function safeSetRemoteDescription(pc, desc) {
+    if (!pc) return;
+    if (desc.type === 'answer' && pc.signalingState !== 'have-local-offer') {
+        await new Promise(resolve => {
+            const interval = setInterval(() => {
+                if (pc.signalingState === 'have-local-offer') {
+                    clearInterval(interval);
+                    resolve();
+                }
+            }, 10);
+        });
+    }
+    await pc.setRemoteDescription(desc);
 }
 
-socket.on('offer', async offer => {
-    stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    local.srcObject = stream;
+function createPeer(peerId) {
+    if (peers[peerId]) return peers[peerId];
+    if (!stream) {
+        console.warn('Stream not ready yet for', peerId);
+        return null;
+    }
 
-    createPeerConnection();
-    stream.getTracks().forEach(t => pc.addTrack(t, stream));
+    const pc = new RTCPeerConnection();
+    peers[peerId] = pc;
+    pendingCandidates[peerId] = [];
+
+    stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+    pc.onicecandidate = e => {
+        if (e.candidate) socket.emit('ice', { to: peerId, candidate: e.candidate });
+    };
+
+    pc.ontrack = e => {
+        let video = document.getElementById(`remote-${peerId}`);
+        if (!video) {
+            video = document.createElement('video');
+            video.style.transform = 'scaleX(-1)';
+            video.id = `remote-${peerId}`;
+            video.autoplay = true;
+            video.playsInline = true;
+            sidebar.appendChild(video);
+        }
+        video.srcObject = e.streams[0];
+    };
+
+    return pc;
+}
+
+// ---------------- SIGNALING ----------------
+socket.on('peers', async ids => {
+    await startPromise;
+    for (const id of ids) {
+        if (id === socket.id || peers[id]) continue;
+        const pc = createPeer(id);
+        if (!pc) continue;
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        socket.emit('offer', { to: id, offer });
+    }
+});
+
+socket.on('offer', async ({ from, offer }) => {
+    await startPromise;
+    const pc = createPeer(from);
+    if (!pc) return;
 
     await pc.setRemoteDescription(offer);
 
-    // flush queued ICE
-    for (const c of pendingCandidates) {
-        await pc.addIceCandidate(c);
-    }
-    pendingCandidates = [];
+    for (const c of pendingCandidates[from]) await pc.addIceCandidate(c);
+    pendingCandidates[from] = [];
 
-    const ans = await pc.createAnswer();
-    await pc.setLocalDescription(ans);
-    socket.emit('answer', ans);
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    socket.emit('answer', { to: from, answer });
 });
 
-socket.on('answer', async ans => {
-    await pc.setRemoteDescription(ans);
+socket.on('answer', async ({ from, answer }) => {
+    const pc = peers[from];
+    if (!pc) return;
 
-    for (const c of pendingCandidates) {
-        await pc.addIceCandidate(c);
-    }
-    pendingCandidates = [];
+    await safeSetRemoteDescription(pc, answer);
+
+    for (const c of pendingCandidates[from]) await pc.addIceCandidate(c);
+    pendingCandidates[from] = [];
 });
 
-socket.on('ice', async c => {
-    if (!c) return;
+socket.on('ice', async ({ from, candidate }) => {
+    const pc = peers[from];
+    if (!pc) return;
 
-    if (pc && pc.remoteDescription) {
-        try {
-            await pc.addIceCandidate(c);
-        } catch (e) {
-            console.error(e);
-        }
-    } else {
-        pendingCandidates.push(c);
+    if (pc.remoteDescription) await pc.addIceCandidate(candidate);
+    else pendingCandidates[from].push(candidate);
+});
+
+socket.on('peer-left', id => {
+    if (peers[id]) {
+        peers[id].close();
+        delete peers[id];
     }
+    const video = document.getElementById(`remote-${id}`);
+    if (video) video.remove();
 });
