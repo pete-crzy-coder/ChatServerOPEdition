@@ -1,8 +1,10 @@
 const socket = io();
+
 const chat = document.getElementById('chat');
 const msg = document.getElementById('msg');
+
 const username = localStorage.username || prompt('Username?') || 'Anonymous';
-localStorage.username = username != 'Anonymous' ? username : '';
+localStorage.username = username !== 'Anonymous' ? username : '';
 socket.emit('set-username', username);
 
 socket.on('chat', data => {
@@ -34,17 +36,28 @@ msg.addEventListener('keydown', e => {
     }
 });
 
-let pc, stream;
+let pc;
+let stream;
+let pendingCandidates = [];
+
+function createPeerConnection() {
+    pc = new RTCPeerConnection();
+
+    pc.ontrack = e => {
+        remote.srcObject = e.streams[0];
+    };
+
+    pc.onicecandidate = e => {
+        if (e.candidate) socket.emit('ice', e.candidate);
+    };
+}
 
 async function startVideo() {
     stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
     local.srcObject = stream;
 
-    pc = new RTCPeerConnection();
+    createPeerConnection();
     stream.getTracks().forEach(t => pc.addTrack(t, stream));
-
-    pc.ontrack = e => remote.srcObject = e.streams[0];
-    pc.onicecandidate = e => e.candidate && socket.emit('ice', e.candidate);
 
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
@@ -52,19 +65,44 @@ async function startVideo() {
 }
 
 socket.on('offer', async offer => {
-    pc = new RTCPeerConnection();
-    pc.ontrack = e => remote.srcObject = e.streams[0];
-    pc.onicecandidate = e => e.candidate && socket.emit('ice', e.candidate);
-
     stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
     local.srcObject = stream;
+
+    createPeerConnection();
     stream.getTracks().forEach(t => pc.addTrack(t, stream));
 
     await pc.setRemoteDescription(offer);
+
+    // flush queued ICE
+    for (const c of pendingCandidates) {
+        await pc.addIceCandidate(c);
+    }
+    pendingCandidates = [];
+
     const ans = await pc.createAnswer();
     await pc.setLocalDescription(ans);
     socket.emit('answer', ans);
 });
 
-socket.on('answer', ans => pc.setRemoteDescription(ans));
-socket.on('ice', c => pc.addIceCandidate(c));
+socket.on('answer', async ans => {
+    await pc.setRemoteDescription(ans);
+
+    for (const c of pendingCandidates) {
+        await pc.addIceCandidate(c);
+    }
+    pendingCandidates = [];
+});
+
+socket.on('ice', async c => {
+    if (!c) return;
+
+    if (pc && pc.remoteDescription) {
+        try {
+            await pc.addIceCandidate(c);
+        } catch (e) {
+            console.error(e);
+        }
+    } else {
+        pendingCandidates.push(c);
+    }
+});

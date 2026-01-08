@@ -9,14 +9,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-
 app.use(express.static(path.join(__dirname, 'public')));
 
 const key = await fs.readFile(path.join(__dirname, '../certs/key.pem'));
 const cert = await fs.readFile(path.join(__dirname, '../certs/cert.pem'));
 
 const server = https.createServer({ key, cert }, app);
-
 const io = new Server(server);
 
 const usernames = new Set();
@@ -31,18 +29,17 @@ io.on('connection', socket => {
     let i = 1;
 
     if (socket.username) usernames.delete(socket.username);
-
     while (usernames.has(finalName)) finalName = `${base}${i++}`;
 
     socket.username = finalName;
     usernames.add(finalName);
+
     socket.emit('username-confirmed', finalName);
     io.emit('system', `${finalName} joined`);
   });
 
   socket.on('chat', msg => {
-    if (!socket.username) return;
-    if (typeof msg !== 'string') return;
+    if (!socket.username || typeof msg !== 'string') return;
     io.emit('chat', { user: socket.username, text: msg });
   });
 
