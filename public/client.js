@@ -5,8 +5,14 @@ localVideo.style.transform = 'scaleX(-1)';
 const sidebar = document.getElementById('sidebar');
 const chat = document.getElementById('chat');
 const msg = document.getElementById('msg');
+const btn = document.getElementById('btn');
 
 const peers = {};
+const commands = [
+    '/set-username',
+    '/help',
+    '/bob'
+];
 const pendingCandidates = {};
 let stream;
 
@@ -30,9 +36,25 @@ socket.on('chat', data => {
     chat.scrollTop = chat.scrollHeight;
 });
 
+function send(msg) {
+    if (msg.startsWith('/')) {
+        if (!commands.includes('msg')) { const d = document.createElement('div'); d.className = 'msg'; d.style.opacity = '0.6'; d.style.alignSelf = 'center'; d.textContent = 'Error: Command does not exist'; chat.appendChild(d); return; }
+        const d = document.createElement('div'); d.className = 'msg'; d.style.opacity = '0.6'; d.style.alignSelf = 'center'; d.textContent = 'yo bro commands dont exist yet'; chat.appendChild(d);
+    } else {
+        socket.emit('chat', msg);
+    }
+};
+
 msg.addEventListener('keydown', e => {
     if (e.key === 'Enter' && msg.value.trim()) {
-        socket.emit('chat', msg.value.trim());
+        send(msg.value.trim())
+        msg.value = '';
+    }
+});
+
+btn.addEventListener('click', e => {
+    if (msg.value.trim()) {
+        send(msg.value.trim())
         msg.value = '';
     }
 });

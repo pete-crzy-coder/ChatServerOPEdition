@@ -38,7 +38,7 @@ io.on('connection', socket => {
   });
 
   // send all current peers to new socket
-    io.emit('peers', Array.from(io.sockets.sockets.keys()));
+  io.emit('peers', Array.from(io.sockets.sockets.keys()));
 
   // Chat messaging
   socket.on('chat', msg => {
