@@ -52,7 +52,7 @@ msg.addEventListener('keydown', e => {
     }
 });
 
-btn.addEventListener('click', e => {
+btn.addEventListener('click', () => {
     if (msg.value.trim()) {
         send(msg.value.trim())
         msg.value = '';
