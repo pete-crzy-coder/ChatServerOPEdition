@@ -52,6 +52,7 @@ body {
 
 input,
 button {
+    border-radius: 14px;
     background: #151a22;
     color: #fff;
     border: 1px solid #262c3a;
@@ -69,4 +70,8 @@ video {
     width: 200px;
     border-radius: 8px;
     background: black;
+}
+
+h3 {
+    margin: 1.3rem;
 }

@@ -11,8 +11,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
 
-const key = await fs.readFile(path.join(__dirname, '../certs/key.pem'));
-const cert = await fs.readFile(path.join(__dirname, '../certs/cert.pem'));
+const key = await fs.readFile(path.join(__dirname, '../certs/key.crt'));
+const cert = await fs.readFile(path.join(__dirname, '../certs/cert.crt'));
 
 const server = https.createServer({ key, cert }, app);
 const io = new Server(server);
@@ -35,6 +35,8 @@ io.on('connection', socket => {
 
     socket.emit('username-confirmed', username);
     io.emit('system', `${username} joined`);
+    console.log(`${username} connected`);
+    socket.username = username;
   });
 
   // send all current peers to new socket
@@ -42,7 +44,7 @@ io.on('connection', socket => {
 
   // Chat messaging
   socket.on('chat', msg => {
-    const user = socket.id.slice(0, 6); // simple user id prefix
+    const user = socket.username;
     io.emit('chat', { user, msg });
   });
 
@@ -61,6 +63,11 @@ io.on('connection', socket => {
 
   socket.on('disconnect', () => {
     io.emit('peer-left', socket.id);
+    if (socket.username) {
+      usernames = usernames.filter(u => u !== socket.username);
+      io.emit('system', `${socket.username} left`);
+      console.log(`${socket.username} disconnected`);
+    }
   });
 });
 

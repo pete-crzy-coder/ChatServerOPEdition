@@ -31,7 +31,7 @@ socket.on('system', text => { const d = document.createElement('div'); d.classNa
 socket.on('chat', data => {
     const d = document.createElement('div');
     d.className = 'msg';
-    d.innerHTML = `<b>${username}:</b> ${data.msg}`;
+    d.innerHTML = `<b>${data.user}:</b> ${data.msg}`;
     chat.appendChild(d);
     chat.scrollTop = chat.scrollHeight;
 });
@@ -64,6 +64,7 @@ async function startVideo() {
     stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
     localVideo.srcObject = stream;
 }
+
 const startPromise = startVideo();
 
 async function safeSetRemoteDescription(pc, desc) {
