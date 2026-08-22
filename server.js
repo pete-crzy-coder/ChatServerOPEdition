@@ -40,7 +40,10 @@ io.on('connection', socket => {
   });
 
   // send all current peers to new socket
-  io.emit('peers', Array.from(io.sockets.sockets.keys()));
+  socket.emit(
+  'peers',
+  Array.from(io.sockets.sockets.keys()).filter(id => id !== socket.id)
+);
 
   // Chat messaging
   socket.on('chat', msg => {
