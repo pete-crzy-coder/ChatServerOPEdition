@@ -48,6 +48,8 @@ body {
     background: #151a22;
     border: 1px solid #262c3a;
     word-wrap: break-word;
+    opacity: 0.6;
+    align-self: center;
 }
 
 input,

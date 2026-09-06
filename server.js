@@ -11,8 +11,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
 
-const key = await fs.readFile(path.join(__dirname, '../certs/key.crt'));
-const cert = await fs.readFile(path.join(__dirname, '../certs/cert.crt'));
+const key = await fs.readFile('/home/craz4c0mput3r/.acme.sh/craz4.duckdns.org_ecc/craz4.duckdns.org.key');
+const cert = await fs.readFile('/home/craz4c0mput3r/.acme.sh/craz4.duckdns.org_ecc/fullchain.cer');
 
 const server = https.createServer({ key, cert }, app);
 const io = new Server(server);
